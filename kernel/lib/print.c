@@ -20,15 +20,14 @@ void print_init(void)
 }
 
 static void
-printint(int xx, int base, int sign)
+printint(uint64 xx, int base, int sign)
 {
-    char buf[16];
+    char buf[32]; // 足够64位地址
     int i;
-    unsigned int x;
+    uint64 x;
 
-
-    if(sign && (sign = xx < 0))
-        x = -xx;
+    if(sign && (sign = (int64)xx < 0))
+        x = -(int64)xx;
     else
         x = xx;
 
@@ -44,54 +43,95 @@ printint(int xx, int base, int sign)
         uart_putc_sync(buf[i]);
 }
 
-// Print to the console. only understands %d, %x, %p, %s.
-void printf(const char *fmt, ...)
+// 打印指针地址，前缀 "0x"
+static void
+printptr(uint64 ptr)
 {
-    va_list ap;
-    int i, c, locking;
-    char *s;
+    uart_putc_sync('0');
+    uart_putc_sync('x');
 
+    char buf[32];
+    int i = 0;
+    if (ptr == 0) {
+        uart_putc_sync('0');
+        return;
+    }
+    while (ptr) {
+        buf[i++] = digits[ptr % 16];
+        ptr /= 16;
+    }
+    while (--i >= 0)
+        uart_putc_sync(buf[i]);
+}
+
+// Print to the console. supports %d, %x, %p, %s.
+void printf(const char *fmt, ...) {
+    va_list ap;
+    int locking;
     locking = pr.locking;
     if(locking)
         spinlock_acquire(&pr.lock);
-
-    if (fmt == 0)
-        panic("null fmt");
-
     va_start(ap, fmt);
-    for(i = 0; (c = fmt[i] & 0xff) != 0; i++){
-        if(c != '%'){
+
+    for (int i = 0; fmt[i]; i++) {
+        char c = fmt[i];
+        if (c != '%') {
             uart_putc_sync(c);
             continue;
         }
-        c = fmt[++i] & 0xff;
-        if(c == 0)
-            break;
-        switch(c){
-        case 'd':
-            printint(va_arg(ap, int), 10, 1);
-            break;
-        case 's':
-            if((s = va_arg(ap, char*)) == 0)
-                s = "(null)";
-            for(; *s; s++)
-                uart_putc_sync(*s);
-            break;
-        case '%':
-            uart_putc_sync('%');
-            break;
-        default:
-        // Print unknown % sequence to draw attention.
-            uart_putc_sync('%');
-            uart_putc_sync(c);
-            break;
+
+        c = fmt[++i] & 0xff;    // 取格式符
+
+        // 新增: 支持 %lx 和 %ld
+        if (c == 'l') {
+            c = fmt[++i] & 0xff;  // 再取下一个
+            if (c == 'x') {
+                printint((uint64)va_arg(ap, uint64), 16, 0);
+                continue;
+            } else if (c == 'd') {
+                printint((uint64)va_arg(ap, uint64), 10, 1);
+                continue;
+            } else {
+                // 未知的 %lX 组合，原样输出
+                uart_putc_sync('%');
+                uart_putc_sync('l');
+                uart_putc_sync(c);
+                continue;
+            }
+        }
+
+        // 原有的格式符支持
+        switch (c) {
+            case 'd':
+                printint((int)va_arg(ap, int), 10, 1);
+                break;
+            case 'x':
+                printint((uint64)va_arg(ap, uint64), 16, 0);
+                break;
+            case 'p':
+                printptr((uint64)va_arg(ap, void*));
+                break;
+            case 's': {
+                char *s = va_arg(ap, char*);
+                if (s == NULL) s = "(null)";
+                for (; *s; s++) uart_putc_sync(*s);
+                break;
+            }
+            case '%':
+                uart_putc_sync('%');
+                break;
+            default:
+                uart_putc_sync('%');
+                uart_putc_sync(c);
+                break;
         }
     }
-    va_end(ap);
 
+    va_end(ap);
     if(locking)
         spinlock_release(&pr.lock);
 }
+
 
 void panic(const char *s)
 {
@@ -111,4 +151,3 @@ void assert(bool condition, const char* warning)
         panic("assertion failure");
     }
 }
-

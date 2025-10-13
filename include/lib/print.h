@@ -2,6 +2,7 @@
 #define __PRINT_H__
 
 #include "common.h"
+#include <stdarg.h>
 
 void print_init(void);
 void printf(const char* fmt, ...);

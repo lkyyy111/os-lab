@@ -1,6 +1,6 @@
 #include "common.h"
 
-// 获取当前CPU的hartid
+
 static inline uint64 r_mhartid()
 {
   uint64 x;
@@ -297,7 +297,7 @@ static inline void sfence_vma()
 }
 
 // 内存管理相关
-
+/*
 #define PGSIZE 4096 // bytes per page
 #define PGSHIFT 12  // bits of offset within a page
 
@@ -327,3 +327,4 @@ static inline void sfence_vma()
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
 #define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+*/
