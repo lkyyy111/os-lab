@@ -67,11 +67,10 @@ void proc_make_fisrt()
 {
     // 1. 设置 PID
     proczero.pid = 0;
-
+    printf("asdf\n");
     // 2. 分配 trapframe（内核区分配，存内核↔用户切换现场）
     proczero.tf = (trapframe_t*)pmem_alloc(true);
     memset(proczero.tf, 0, PGSIZE);
-
     // 3. 创建用户页表（后续ustack/data等映射会继续加）
     proczero.pgtbl = proc_pgtbl_init(TRAPFRAME);
 
@@ -85,7 +84,6 @@ void proc_make_fisrt()
                 PGSIZE,
                 PTE_R | PTE_W | PTE_U);
     proczero.ustack_pages = 1;
-
     // 5. 拷贝 initcode[] 到用户代码段（UTEXT）
     uint64 code_va = UTEXT;
     uint64 code_pa = (uint64)pmem_alloc(false);

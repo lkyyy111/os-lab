@@ -18,14 +18,16 @@ int main()
         trap_kernel_init();
         timer_create();
         trap_kernel_inithart();
+        
 
         printf("[CPU%d] System booting...\n", cpuid);
         printf("[TEST] Timer interrupt (tick) and UART interrupt (echo) ready.\n");
         printf("[INFO] Type characters to see UART interrupt echo.\n");
 
         // 创建单个用户进程
+        
         proc_make_fisrt();
-
+        printf("222222\n");
         __sync_synchronize();
         started = 1;
     } else {
