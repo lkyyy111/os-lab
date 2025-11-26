@@ -30,5 +30,10 @@
 #define CLINT_MTIMECMP(hartid) (CLINT_BASE + 0x4000 + 8 * (hartid))
 #define CLINT_MTIME (CLINT_BASE + 0xBFF8)
 
+#define TRAMPOLINE  (MAXVA - PGSIZE)
+#define TRAPFRAME   (TRAMPOLINE - PGSIZE)
+
+#define USTACK_TOP  (TRAPFRAME - PGSIZE)
+#define UTEXT       (PGSIZE)
 
 #endif

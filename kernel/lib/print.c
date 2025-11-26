@@ -91,6 +91,9 @@ void printf(const char *fmt, ...) {
             } else if (c == 'd') {
                 printint((uint64)va_arg(ap, uint64), 10, 1);
                 continue;
+            } else if (c == 'u') {
+                printint((uint64)va_arg(ap, uint64), 10, 0);
+                continue;
             } else {
                 // 未知的 %lX 组合，原样输出
                 uart_putc_sync('%');

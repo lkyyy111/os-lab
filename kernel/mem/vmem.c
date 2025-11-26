@@ -5,7 +5,7 @@
 #include "lib/str.h"
 
 // 内核页表全局变量
-static pgtbl_t kernel_pgtbl = NULL;
+pgtbl_t kernel_pgtbl = NULL;
 
 // 获取 PTE 指针：如果 alloc=true 且中间页表不存在，则分配
 pte_t* vm_getpte(pgtbl_t pagetable, uint64 va, bool alloc) {

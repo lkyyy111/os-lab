@@ -1,58 +1,39 @@
 #include "dev/uart.h"
 #include "lib/print.h"
+#include "trap/trap.h"
+#include "dev/timer.h"
 #include "riscv.h"
-#include "mem/pmem.h"
-#include "mem/vmem.h"
-#include "lib/str.h"
-#include "common.h"
+#include "proc/proc.h"       // 声明 proc_make_fisrt()
+#include "trap/trap.h" // 声明 trap_user_return()
 
-// 多核同步变量
 volatile static int started = 0;
-volatile static int over_1 = 0, over_2 = 0;
-
-// 保存分配的物理页指针
-// static int* mem[1024];
 
 int main()
 {
     int cpuid = r_tp();
 
-    if(cpuid == 0) {
+    if (cpuid == 0) {
         uart_init();
         print_init();
-        pmem_init();
-        kvm_init();
-        kvm_inithart();
+        trap_kernel_init();
+        timer_create();
+        trap_kernel_inithart();
 
-        printf("cpu %d is booting!\n", cpuid);
+        printf("[CPU%d] System booting...\n", cpuid);
+        printf("[TEST] Timer interrupt (tick) and UART interrupt (echo) ready.\n");
+        printf("[INFO] Type characters to see UART interrupt echo.\n");
+
+        // 创建单个用户进程
+        proc_make_fisrt();
+
         __sync_synchronize();
-        // started = 1;
-
-        pgtbl_t test_pgtbl = pmem_alloc(true);
-        uint64 mem[5];
-        for(int i = 0; i < 5; i++)
-            mem[i] = (uint64)pmem_alloc(false);
-
-        printf("\ntest-1\n\n");    
-        vm_mappages(test_pgtbl, 0, mem[0], PGSIZE, PTE_R);
-        vm_mappages(test_pgtbl, PGSIZE * 10, mem[1], PGSIZE / 2, PTE_R | PTE_W);
-        vm_mappages(test_pgtbl, PGSIZE * 512, mem[2], PGSIZE - 1, PTE_R | PTE_X);
-        vm_mappages(test_pgtbl, PGSIZE * 512 * 512, mem[2], PGSIZE, PTE_R | PTE_X);
-        vm_mappages(test_pgtbl, VA_MAX - PGSIZE, mem[4], PGSIZE, PTE_W);
-        vm_print(test_pgtbl);
-
-        printf("\ntest-2\n\n");    
-        vm_mappages(test_pgtbl, 0, mem[0], PGSIZE, PTE_W);
-        vm_unmappages(test_pgtbl, PGSIZE * 10, PGSIZE, true);
-        vm_unmappages(test_pgtbl, PGSIZE * 512, PGSIZE, true);
-        vm_print(test_pgtbl);
-
+        started = 1;
     } else {
-
-        while(started == 0);
+        while (started == 0);
         __sync_synchronize();
-        printf("cpu %d is booting!\n", cpuid);
-         
+        trap_kernel_inithart();
+        printf("[CPU%d] Second core ready.\n", cpuid);
     }
-    while (1);    
+
+    return 0;
 }

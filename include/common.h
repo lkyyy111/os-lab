@@ -31,6 +31,7 @@ typedef enum {false = 0, true = 1} bool;
 
 // 页面大小相关
 #define PGSIZE 4096
+#define MAXVA  (1UL << 39)
 #define PGSHIFT 12
 
 #define KERNEL_PAGES 512           // 内核保留物理页数量

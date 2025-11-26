@@ -2,6 +2,7 @@
 #define __VMEM_H__
 
 #include "common.h"
+#include "proc/proc.h"
 
 /*
 我们使用RISC-V体系结构中的SV39作为虚拟内存的设计规范
@@ -29,6 +30,7 @@ U : 用户态是否可以访问
 PPN区域 : 存放物理页号
 
 */
+extern pgtbl_t kernel_pgtbl;
 
 // 页表项
 typedef uint64 pte_t;
