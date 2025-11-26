@@ -18,8 +18,6 @@ int main()
         trap_kernel_init();
         timer_create();
         trap_kernel_inithart();
-        
-
         printf("[CPU%d] System booting...\n", cpuid);
         printf("[TEST] Timer interrupt (tick) and UART interrupt (echo) ready.\n");
         printf("[INFO] Type characters to see UART interrupt echo.\n");
