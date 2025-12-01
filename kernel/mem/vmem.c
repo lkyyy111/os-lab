@@ -3,6 +3,9 @@
 #include "mem/pmem.h"    // 物理内存分配器
 #include "lib/print.h"   // 调试输出
 #include "lib/str.h"
+#include "memlayout.h"
+
+extern char trampoline[];
 
 // 内核页表全局变量
 pgtbl_t kernel_pgtbl = NULL;
@@ -116,10 +119,20 @@ void kvm_init() {
     uint64 uart_va = 0x10000000;
     vm_mappages(kernel_pgtbl, uart_va, uart_va, PGSIZE, PTE_R | PTE_W);
 
+    uint64 plic_base = 0x0c000000;
+    uint64 plic_size = 0x400000; // 4MB
+    vm_mappages(kernel_pgtbl, plic_base, plic_base, plic_size, PTE_R | PTE_W);
+
+    uint64 clint_base = 0x02000000;
+    uint64 clint_size = 0x10000; // 64KB
+    vm_mappages(kernel_pgtbl, clint_base, clint_base, clint_size, PTE_R | PTE_W);
+
     // 2. 内存区恒等映射 (例如 QEMU 默认内存 128MB 从 0x80000000)
     uint64 dram_base = 0x80000000;
     uint64 dram_size = 128 * 1024 * 1024;
     vm_mappages(kernel_pgtbl, dram_base, dram_base, dram_size, PTE_R | PTE_W | PTE_X);
+
+    vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 }
 
 // 启用分页模式

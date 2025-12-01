@@ -10,7 +10,8 @@ SECTIONS
   /* 代码段 */
   .text : {
     *(.text .text.*)
-    *(.trampsec)
+    . = ALIGN(0x1000);
+    *(trampsec)
     . = ALIGN(0x1000);
     PROVIDE(etext = .);     /* 内核代码结束地址 */
     PROVIDE(KERNEL_TEXT_END = .);

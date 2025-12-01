@@ -1,13 +1,17 @@
 include common.mk
 
 KERN = kernel
+USER = user
 KERNEL_ELF = kernel-qemu
 CPUNUM = 2
 FS_IMG = none
 
-.PHONY: clean $(KERN)
+.PHONY: clean $(KERN) $(USER)
 
-$(KERN):
+$(USER):
+	$(MAKE) init --directory=$@
+
+$(KERN): $(USER)
 	$(MAKE) build --directory=$@
 
 # QEMU相关配置

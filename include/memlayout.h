@@ -33,6 +33,8 @@
 #define TRAMPOLINE  (MAXVA - PGSIZE)
 #define TRAPFRAME   (TRAMPOLINE - PGSIZE)
 
+#define KSTACK(p) (TRAMPOLINE - ((p) + 1) * 2 * PGSIZE)
+
 #define USTACK_TOP  (TRAPFRAME - PGSIZE)
 #define UTEXT       (PGSIZE)
 
