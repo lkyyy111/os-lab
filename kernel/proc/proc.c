@@ -66,7 +66,7 @@ void proc_make_fisrt()
     void *kstack_pa = pmem_alloc(true);
     if(kstack_pa == NULL) panic("proc_make_first: kstack alloc");
     
-    // 在【内核页表】中建立映射
+    // 在内核页表中建立映射
     // proczero 是第0个进程，使用 KSTACK(0) 计算虚拟地址
     p->kstack = KSTACK(0);
     vm_mappages(kernel_pgtbl, p->kstack, (uint64)kstack_pa, PGSIZE, PTE_R | PTE_W);
@@ -111,8 +111,8 @@ void proc_make_fisrt()
     p->tf->epc = UTEXT; 
     
     // SP: 用户栈顶。
-    // 注意：USTACK_TOP 是栈页的【起始地址】(低地址)
-    // 栈是向下生长的，所以 SP 应该是页面的【结束地址】(高地址)
+    // 注意：USTACK_TOP 是栈页的起始地址(低地址)
+    // 栈是向下生长的，所以 SP 应该是页面的结束地址(高地址)
     p->tf->sp = USTACK_TOP + PGSIZE; 
 
     // 8. 设置内核上下文 (为了 swtch)
