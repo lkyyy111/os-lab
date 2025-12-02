@@ -57,6 +57,7 @@ pgtbl_t proc_pgtbl_init(uint64 trapframe)
 void proc_make_fisrt()
 {
     proc_t *p = &proczero;
+    p->mmap = NULL;
     
     // 1. 设置 PID
     p->pid = 1;

@@ -5,6 +5,9 @@
 // 内核基地址
 #define KERNEL_BASE 0x80000000ul
 
+#define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
+#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
+
 // UART 相关
 #define UART_BASE  0x10000000ul
 #define UART_IRQ   10

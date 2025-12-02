@@ -48,25 +48,38 @@ pte_t* vm_getpte(pgtbl_t pagetable, uint64 va, bool alloc) {
 }
 
 // 映射一段内存
-void vm_mappages(pgtbl_t pagetable, uint64 va, uint64 pa, uint64 len, int perm) {
-    if (len == 0) 
-        return;
+int vm_mappages(pgtbl_t pagetable, uint64 va, uint64 pa, uint64 len, int perm) {
+    uint64 a, end;
+    pte_t *pte;
 
-    uint64 a = va;
-    uint64 end = va + len;
-    while (a < end) {
-        pte_t* pte = vm_getpte(pagetable, a, true);
+    if(len == 0)
+        return 0; // 长度为0，直接视为成功
+
+    a = PGROUNDDOWN(va); // 建议向下取整对齐
+    end = va + len - 1;  // 计算最后一个字节的地址
+    end = PGROUNDDOWN(end); // 最后一页的起始地址
+
+    while (a <= end) { // 注意这里改成 <= end 或者保持你原来的 < end 但配合 a += PGSIZE
+        // 你的原始逻辑是 a < va+len，如果 va 已经对齐且 len 是 PGSIZE 倍数，这是对的。
+        // 为了保险起见，建议使用 xv6 标准写法，或者保持你原来的逻辑只需增加返回值：
+        
+        pte = vm_getpte(pagetable, a, true); // true 表示分配
         if (pte == NULL) {
-            printf("vm_mappages: unable to allocate PTE for va=0x%lx\n", a);
-            return;
+            printf("vm_mappages: unable to allocate PTE for va=0x%lx", a);
+            return -1; // 【修改点】返回错误码
         }
         if (*pte & PTE_V) {
-            printf("vm_mappages: remap at va=0x%lx\n", a);
+            printf("vm_mappages: remap at va=0x%lx", a);
+            // 如果不允许重映射，这里也可以 return -1
+            // *pte = 0; // 如果需要覆盖，可以先清空
         }
         *pte = PA_TO_PTE(pa) | perm | PTE_V;
+        
+        if (a == end) break; // 防止溢出
         a += PGSIZE;
         pa += PGSIZE;
     }
+    return 0; // 【修改点】返回成功
 }
 
 // 解除映射

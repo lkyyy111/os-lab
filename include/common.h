@@ -29,6 +29,14 @@ typedef enum {false = 0, true = 1} bool;
 
 #define NCPU 2
 
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
 // 页面大小相关
 #define PGSIZE 4096
 #define MAXVA  (1UL << 38)
