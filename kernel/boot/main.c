@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "mem/pmem.h"
 #include "mem/vmem.h"
+#include "mem/mmap.h"
 #include "lib/str.h"
 #include "common.h"
 #include "proc/proc.h" // 必须包含这个头文件以调用 proc_make_first
@@ -24,6 +25,7 @@ int main()
 
         // 2. 内存初始化
         pmem_init();
+        mmap_init();
         kvm_init();       // 初始化内核页表
         kvm_inithart();   // 开启分页 (satp)
 
@@ -44,6 +46,8 @@ int main()
         // 6. 创建并运行第一个用户进程
         // 注意：这个函数通常不会返回，因为通过 trap_user_return 进用户态了
         proc_make_fisrt(); 
+
+        proc_scheduler();
         
         // 如果 proc_make_first 设计为会返回（例如使用了调度器），
         // 这里的代码才会执行。但在简单实验中，通常直接跳走了。

@@ -7,6 +7,8 @@
 #include "syscall/sysfunc.h"
 #include "syscall/syscall.h"
 #include "riscv.h"
+#include "proc/proc.h"
+#include "dev/timer.h"
 
 // 堆伸缩
 // uint64 new_heap_top 新的堆顶 (如果是0代表查询, 返回旧的堆顶)
@@ -46,29 +48,24 @@ uint64 sys_mmap()
     arg_uint64(0, &start);
     arg_uint32(1, &len);
 
-    // 简单的参数检查
     if (len == 0) return -1;
+    if (start % PGSIZE != 0) return -1;
 
-    // 对齐检查：mmap 要求按页操作
-    // 你的 uvm_mmap 里面有 assert(begin % PGSIZE == 0)，所以这里最好先检查
-    if (start % PGSIZE != 0) {
-        // 如果实验要求宽松，可以手动帮忙对齐：start = PGROUNDDOWN(start);
-        // 这里按照严格模式返回错误
-        return -1; 
-    }
-
-    // 计算页数 (向上取整)
     uint32 npages = (len + PGSIZE - 1) / PGSIZE;
+    
+    // 权限设置
+    // 注意：initcode.c 里可能没有传 prot 参数，所以这里默认 RW
+    // 同时必须加上 PTE_U 否则用户态不可访问
+    int perm = PTE_R | PTE_W | PTE_U;
 
-    // 权限设置：默认给予读写权限 (PTE_R | PTE_W | PTE_U)
-    // 如果你的实验需要支持 PROT 参数，请从 arg 2 读取并转换
-    int perm = PTE_R | PTE_W | PTE_U; // 加上 PTE_U 确保用户可访问
+    // 直接调用 uvm_mmap
+    // uvm_mmap 内部已经做了 pmem_alloc 和 vm_mappages
+    uvm_mmap(start, npages, perm); 
 
-    // 调用你的 uvm_mmap
-    // 注意：uvm_mmap 返回 void，若失败内部 panic (根据你提供的代码)
-    // 为了防止 panic 导致内核崩溃，你可能需要在 uvm_mmap 里把 panic 改成返回错误码
-    // 但目前按你提供的代码直接调用：
-    uvm_mmap(start, npages, perm);
+    // ！！！删掉后面所有的 for 循环分配代码！！！
+    
+    // 加上 TLB 刷新以防万一
+    asm volatile("sfence.vma");
 
     return start;
 }
@@ -97,52 +94,100 @@ uint64 sys_munmap()
     return 0;
 }
 
-// copyin 测试 (int 数组)
+// 辅助函数：封装 uvm_copyin_str
+static int fetch_str(uint64 addr, char *buf, int max) {
+    struct proc *p = myproc();
+    
+    // 为了安全，先清空缓冲区，防止 uvm_copyin_str 失败导致打印乱码
+    memset(buf, 0, max);
+    
+    // 使用你在 uvm.c 中定义的 uvm_copyin_str
+    // 注意：uvm_copyin_str 返回 void，如果拷贝过程中遇到非法地址会提前返回
+    // 此时 buf 可能是部分拷贝的或者是空的，但因为上面 memset 了，所以是安全的
+    uvm_copyin_str(p->pgtbl, (uint64)buf, addr, max);
+    
+    return strlen(buf);
+}
+
+
+// 打印字符
 // uint64 addr
-// uint32 len
-// 返回 0
-uint64 sys_copyin()
+uint64 sys_print()
 {
-    proc_t* p = myproc();
     uint64 addr;
-    uint32 len;
+    char buf[512]; // 缓冲区
 
+    // 获取第0个参数
     arg_uint64(0, &addr);
-    arg_uint32(1, &len);
 
-    int tmp;
-    for(int i = 0; i < len; i++) {
-        uvm_copyin(p->pgtbl, (uint64)&tmp, addr + i * sizeof(int), sizeof(int));
-        printf("get a number from user: %d\n", tmp);
-    }
+    // 从用户空间拷贝字符串到内核空间
+    if(fetch_str(addr, buf, sizeof(buf)) < 0)
+        return -1;
 
+    // 打印
+    printf("%s", buf);
     return 0;
 }
 
-// copyout 测试 (int 数组)
-// uint64 addr
-// 返回数组元素数量
-uint64 sys_copyout()
+// 进程复制
+uint64 sys_fork()
 {
-    int L[5] = {1, 2, 3, 4, 5};
-    proc_t* p = myproc();
-    uint64 addr;
-
-    arg_uint64(0, &addr);
-    uvm_copyout(p->pgtbl, addr, (uint64)L, sizeof(int) * 5);
-
-    return 5;
+    return proc_fork();
 }
 
-// copyinstr测试
-// uint64 addr
-// 成功返回0
-uint64 sys_copyinstr()
+// 进程等待
+// uint64 addr  子进程退出时的exit_state需要放到这里 
+uint64 sys_wait()
 {
-    char s[64];
+    uint64 addr;
+    arg_uint64(0, &addr);
+    return proc_wait(addr);
+}
 
-    arg_str(0, s, 64);
-    printf("get str from user: %s\n", s);
+// 进程退出
+// int exit_state
+uint64 sys_exit()
+{
+    // [修复] 使用 uint64 类型的临时变量来匹配 arg_uint64 的参数要求
+    uint64 tmp_state; 
+    arg_uint64(0, &tmp_state);
+    
+    // 转换回 int 类型
+    int exit_state = (int)tmp_state;
+    
+    proc_exit(exit_state);
+    return 0; // 不可达
+}
 
+extern timer_t sys_timer;
+
+// 进程睡眠一段时间
+// uint32 second 睡眠时间
+// 成功返回0, 失败返回-1
+uint64 sys_sleep()
+{
+    uint32 n;
+    uint64 ticks0;
+
+    arg_uint32(0, &n);
+
+    // 1. 获取定时器锁
+    spinlock_acquire(&sys_timer.lk);
+    
+    ticks0 = sys_timer.ticks;
+    
+    // 2. 循环等待直到时间流逝足够
+    while(sys_timer.ticks - ticks0 < n){
+        // 注意：由于你的 proc 结构体没有 killed 字段，这里删除了 killed 检查
+        // 如果被外部终止，该进程必须睡够时间才能退出
+        
+        // 3. 睡眠
+        // proc_sleep 会释放锁、修改状态、调度，唤醒后重新获取锁
+        proc_sleep(&sys_timer, &sys_timer.lk);
+    }
+    
+    // 4. 释放锁
+    spinlock_release(&sys_timer.lk);
+    
     return 0;
 }

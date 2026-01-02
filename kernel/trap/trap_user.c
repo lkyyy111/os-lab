@@ -4,6 +4,7 @@
 #include "mem/vmem.h"
 #include "memlayout.h"
 #include "riscv.h"
+#include "syscall/syscall.h"
 
 // in trampoline.S
 extern char trampoline[];      // 内核和用户切换的代码
@@ -67,6 +68,7 @@ void trap_user_handler()
 
             // 开启中断（系统调用通常允许中断）
             intr_on();
+            syscall();
         } else {
             // 其他异常（如缺页、非法指令等）
             printf("usertrap: unexpected exception code %d", trap_id);

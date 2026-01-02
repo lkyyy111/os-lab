@@ -4,6 +4,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "proc/cpu.h"
+#include "proc/proc.h"
 
 /*-------------------- 工作在M-mode --------------------*/
 
@@ -48,7 +49,7 @@ void timer_init()
 /*--------------------- 工作在S-mode --------------------*/
 
 // 系统时钟
-static timer_t sys_timer;
+timer_t sys_timer;
 
 // 时钟创建(初始化系统时钟)
 void timer_create()
@@ -63,6 +64,7 @@ void timer_update()
 {
     spinlock_acquire(&sys_timer.lk);
     sys_timer.ticks++;
+    proc_wakeup(&sys_timer);
     spinlock_release(&sys_timer.lk);
 }
 
