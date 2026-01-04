@@ -37,12 +37,16 @@ typedef enum {false = 0, true = 1} bool;
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+#define ALIGN_DOWN(addr, size)  ((addr) & ~((size) - 1))
+#define ALIGN_UP(addr, size)    (((addr) + (size) - 1) & ~((size) - 1))
+
 // 页面大小相关
 #define PGSIZE 4096
 #define MAXVA  (1UL << 38)
 #define PGSHIFT 12
 
 #define KERNEL_PAGES 512           // 内核保留物理页数量
-
+#define BLOCK_SIZE 1024 
 
 #endif

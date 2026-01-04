@@ -264,13 +264,13 @@ uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 heap_top, uint32 len)
     return new_heap_top;
 }
 
-void uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
+int uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
 {
     uint64 n, va0, pa0;
     while(len > 0){
         va0 = PGROUNDDOWN(src);
         pte_t* pte = vm_getpte(pgtbl, va0, false);
-        if(pte == NULL || !(*pte & PTE_V)) return; 
+        if(pte == NULL || !(*pte & PTE_V)) return -1; 
         
         pa0 = PTE_TO_PA(*pte);
         n = PGSIZE - (src - va0);
@@ -278,15 +278,16 @@ void uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
         memmove((void*)dst, (void*)(pa0 + (src - va0)), n);
         len -= n; src += n; dst += n;
     }
+    return 0;
 }
 
-void uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
+int uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
 {
     uint64 n, va0, pa0;
     while(len > 0){
         va0 = PGROUNDDOWN(dst);
         pte_t* pte = vm_getpte(pgtbl, va0, false);
-        if(pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_U)) return; 
+        if(pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_U)) return -1; 
         
         pa0 = PTE_TO_PA(*pte);
         n = PGSIZE - (dst - va0);
@@ -294,6 +295,7 @@ void uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
         memmove((void*)(pa0 + (dst - va0)), (void*)src, n);
         len -= n; src += n; dst += n;
     }
+    return 0;
 }
 
 void uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen)

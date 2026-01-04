@@ -9,6 +9,11 @@
 #include "riscv.h"
 #include "proc/proc.h"
 #include "dev/timer.h"
+#include "fs/dir.h"
+
+#define ELF_MAXARGS 32  // 最大支持的命令行参数个数
+
+extern int proc_exec(char *path, char **argv);
 
 // 堆伸缩
 // uint64 new_heap_top 新的堆顶 (如果是0代表查询, 返回旧的堆顶)
@@ -95,20 +100,16 @@ uint64 sys_munmap()
 }
 
 // 辅助函数：封装 uvm_copyin_str
-static int fetch_str(uint64 addr, char *buf, int max) {
+static int fetch_str_safe(uint64 addr, char *buf, int max) {
     struct proc *p = myproc();
-    
-    // 为了安全，先清空缓冲区，防止 uvm_copyin_str 失败导致打印乱码
+    pte_t *pte = vm_getpte(p->pgtbl, addr, false);
+    if(pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_U))
+        return -1;
+        
     memset(buf, 0, max);
-    
-    // 使用你在 uvm.c 中定义的 uvm_copyin_str
-    // 注意：uvm_copyin_str 返回 void，如果拷贝过程中遇到非法地址会提前返回
-    // 此时 buf 可能是部分拷贝的或者是空的，但因为上面 memset 了，所以是安全的
     uvm_copyin_str(p->pgtbl, (uint64)buf, addr, max);
-    
     return strlen(buf);
 }
-
 
 // 打印字符
 // uint64 addr
@@ -121,7 +122,7 @@ uint64 sys_print()
     arg_uint64(0, &addr);
 
     // 从用户空间拷贝字符串到内核空间
-    if(fetch_str(addr, buf, sizeof(buf)) < 0)
+    if(fetch_str_safe(addr, buf, sizeof(buf)) < 0)
         return -1;
 
     // 打印
@@ -190,4 +191,78 @@ uint64 sys_sleep()
     spinlock_release(&sys_timer.lk);
     
     return 0;
+}
+
+
+static uint64 fetch_addr(uint64 addr) {
+    struct proc *p = myproc();
+    uint64 val = 0;
+    
+    // 手动检查页表，确保地址有效 (因为 uvm_copyin 不报错)
+    // 注意：这里只检查了首地址，严格来说应该检查 8 字节
+    pte_t *pte = vm_getpte(p->pgtbl, addr, false);
+    if(pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_U))
+        return 0; // 视为无效地址 (假设 0 地址不可用，或者依靠后续逻辑)
+
+    uvm_copyin(p->pgtbl, (uint64)&val, addr, sizeof(uint64));
+    return val;
+}
+// 执行一个ELF文件
+// char* path
+// char** argv
+// 成功返回argc 失败返回-1
+uint64 sys_exec()
+{
+    printf("DEBUG: sys_exec enter\n");
+    char path[DIR_PATH_LEN];
+    char* argv[ELF_MAXARGS];
+    uint64 uargv, uarg;
+    int argc = 0;
+
+    // 1. 获取路径
+    arg_str(0, path, DIR_PATH_LEN);
+    printf("DEBUG: exec path = %s\n", path);
+    // 2. 获取 argv 数组地址
+    arg_uint64(1, &uargv); 
+    printf("DEBUG: uargv addr = 0x%lx\n", uargv);
+
+    memset(argv, 0, sizeof(argv));
+
+    // 3. 提取参数
+    for(argc = 0; argc < ELF_MAXARGS; argc++) {
+        // 读取 argv[i]
+        uarg = fetch_addr(uargv + sizeof(uint64) * argc);
+        printf("DEBUG: argv[%d] addr = 0x%lx\n", argc, uarg);
+        
+        if(uarg == 0) 
+            break;
+
+        argv[argc] = (char*)pmem_alloc(false);
+        if(argv[argc] == 0)
+            goto bad;
+        
+        if(fetch_str_safe(uarg, argv[argc], PGSIZE) < 0) {
+            printf("DEBUG: fetch_str_safe failed for argv[%d]\n", argc);
+            goto bad;
+        }
+        printf("DEBUG: argv[%d] val = %s\n", argc, argv[argc]);
+    }
+
+    // 4. 执行
+    printf("DEBUG: calling proc_exec...\n");
+    int ret = proc_exec(path, argv);
+    printf("DEBUG: proc_exec returned %d\n", ret);
+
+    // 5. 清理内核缓冲区
+    for(int i = 0; i < argc; i++) {
+        if(argv[i]) pmem_free((uint64)argv[i], false);
+    }
+    return ret;
+
+bad:
+    printf("DEBUG: sys_exec bad exit\n");
+    for(int i = 0; i < argc; i++) {
+        if(argv[i]) pmem_free((uint64)argv[i], false);
+    }
+    return -1;
 }

@@ -3,10 +3,14 @@
 
 #include "common.h"
 #include "lib/lock.h"
+#include "fs/inode.h"
+
 
 // 页表类型定义
 typedef uint64* pgtbl_t;
+#define FILE_PER_PROC 16  // 每个进程最大打开文件数
 
+struct file;
 // mmap_region定义
 typedef struct mmap_region mmap_region_t;
 
@@ -109,9 +113,12 @@ typedef struct proc {
     uint64 ustack_pages;     // 用户栈占用的页面数量
     mmap_region_t* mmap;     // 用户可映射区域的起始节点
     trapframe_t* tf;         // 用户态内核态切换时的运行环境暂存空间
+    struct inode* cwd;      // 当前工作目录
 
     uint64 kstack;           // 内核栈的虚拟地址
     context_t ctx;           // 内核态进程上下文
+
+    struct file* files[FILE_PER_PROC]; // 进程打开的文件表
 } proc_t;
 
 void     proc_init();                                  // 进程模块初始化
@@ -127,5 +134,9 @@ void     proc_sleep(void* sleep_space, spinlock_t* lk);// 进程睡眠
 void     proc_wakeup(void* sleep_space);               // 进程唤醒
 void     proc_sched();                                 // 进程切换到调度器
 void     proc_scheduler();                             // 调度器
+// exec.c
+int proc_exec(char *path, char **argv);
+
+
 
 #endif

@@ -10,7 +10,7 @@
 
 // 系统调用跳转
 static uint64 (*syscalls[])(void) = {
-    [SYS_print]         sys_print,
+    [SYS_exec]          sys_exec,
     [SYS_brk]           sys_brk,
     [SYS_mmap]          sys_mmap,
     [SYS_munmap]        sys_munmap,
@@ -18,6 +18,18 @@ static uint64 (*syscalls[])(void) = {
     [SYS_wait]          sys_wait,
     [SYS_exit]          sys_exit,
     [SYS_sleep]         sys_sleep,
+    [SYS_open]          sys_open,
+    [SYS_close]         sys_close,
+    [SYS_read]          sys_read,
+    [SYS_write]         sys_write,
+    [SYS_lseek]         sys_lseek,
+    [SYS_dup]           sys_dup,
+    [SYS_fstat]         sys_fstat,
+    [SYS_getdir]        sys_getdir,
+    [SYS_mkdir]         sys_mkdir,
+    [SYS_chdir]         sys_chdir,
+    [SYS_link]          sys_link,
+    [SYS_unlink]        sys_unlink,
 };
 
 // 系统调用

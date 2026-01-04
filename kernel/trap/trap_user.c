@@ -92,7 +92,7 @@ void trap_user_return()
     // 下面的操作涉及 CSR 修改和页表切换，必须原子
     intr_off();
 
-    w_sie(r_sie() & ~(1L << 9)); 
+    // w_sie(r_sie() & ~(1L << 9)); 
 
     // 2. 设置 stvec 指向 trampoline 中的 user_vector
     // 这样下一次用户态 trap 就会跳到 trampoline 执行

@@ -2,6 +2,7 @@
 #include "dev/timer.h"
 #include "dev/uart.h"
 #include "dev/plic.h"
+#include "dev/vio.h"
 #include "trap/trap.h"
 #include "proc/cpu.h"
 #include "memlayout.h"
@@ -74,15 +75,25 @@ void trap_kernel_inithart()
 // 外设中断处理 (基于PLIC)
 void external_interrupt_handler()
 {
+    // 打印 PLIC pending 寄存器方便定位（哪个 device 在挂起）
+    //uint32 pending = *(uint32*)(PLIC_PENDING);
+    // printf("external_interrupt_handler: plic_pending=0x%x\n", pending);
+
     // 获取当前挂起的最高优先级外部中断 ID
     int irq = plic_claim();
+
+    // 增加调试打印
+    // printf("external_interrupt_handler: plic_claim=%d\n", irq);
 
     if (irq == UART_IRQ) {
         // 调用 UART 中断处理函数
         uart_intr();
+    }  else if (irq == VIRTIO_IRQ){
+        printf("external_interrupt_handler: dispatch to virtio_disk_intr\n");
+        virtio_disk_intr();
     } else if (irq) {
         // 如果不是 UART，简单提示一下
-        printf("unexpected external irq=%d", irq);
+        printf("unexpected external irq=%d\n", irq);
     }
 
     // 完成中断处理，通知 PLIC

@@ -13,6 +13,9 @@ pgtbl_t kernel_pgtbl = NULL;
 // 获取 PTE 指针：如果 alloc=true 且中间页表不存在，则分配
 pte_t* vm_getpte(pgtbl_t pagetable, uint64 va, bool alloc) {
     if (va >= VA_MAX) return NULL;
+    if (pagetable == NULL) {
+        pagetable = kernel_pgtbl;
+    }
 
     pgtbl_t pt = pagetable;
     for (int level = 2; level > 0; level--) {
@@ -129,6 +132,9 @@ void kvm_init() {
     // 1. 硬件寄存器区恒等映射 (例如 UART)
     uint64 uart_va = 0x10000000;
     vm_mappages(kernel_pgtbl, uart_va, uart_va, PGSIZE, PTE_R | PTE_W);
+
+    uint64 virtio_base = 0x10001000;
+    vm_mappages(kernel_pgtbl, virtio_base, virtio_base, PGSIZE, PTE_R | PTE_W);
 
     uint64 plic_base = 0x0c000000;
     uint64 plic_size = 0x400000; // 4MB

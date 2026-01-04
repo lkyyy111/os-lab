@@ -4,9 +4,13 @@
 #include "mem/vmem.h"
 #include "mem/mmap.h"
 #include "proc/cpu.h"
+#include "proc/proc.h"
 #include "proc/initcode.h"
 #include "memlayout.h"
 #include "riscv.h"
+#include "fs/file.h"
+#include "fs/dir.h"
+#include "fs/inode.h"
 
 #define NPROC 64
 
@@ -117,6 +121,8 @@ found:
     p->parent = NULL; 
     p->exit_state = 0;
     p->sleep_space = NULL;
+
+    memset(p->files, 0, sizeof(p->files));
 
     // 7. 设置内核上下文 context
     memset(&p->ctx, 0, sizeof(p->ctx));
@@ -303,6 +309,28 @@ void proc_make_fisrt()
     p->ctx.ra = (uint64)fork_return; 
     p->ctx.sp = p->kstack + PGSIZE;
 
+    p->cwd = inode_alloc(INODE_ROOT); 
+    
+    if(p->cwd == 0)
+        panic("proc_make_first: inode_alloc root failed");
+
+    // 绑定控制台到标准输出/输入文件描述符
+    // 注意：用户态宏定义为 STD_OUT=0, STD_IN=1
+    // 这里按照该约定设置 files[0] 可写，files[1] 可读
+    {
+        file_t *f_out = file_create_dev("console", DEV_CONSOLE, 0);
+        if(f_out == NULL) panic("proc_make_first: create console out");
+        f_out->readable = false;
+        f_out->writable = true;
+        p->files[0] = f_out; // STD_OUT
+
+        file_t *f_in = file_create_dev("console", DEV_CONSOLE, 0);
+        if(f_in == NULL) panic("proc_make_first: create console in");
+        f_in->readable = true;
+        f_in->writable = false;
+        p->files[1] = f_in; // STD_IN
+    }
+
     // 9. [修改] 设置状态为 RUNNABLE 并直接返回
     // 此时不进行 swtch，等待 cpu_scheduler 选中它
     spinlock_acquire(&p->lk);
@@ -327,17 +355,11 @@ int proc_fork()
     }
 
     // 2. 复制父进程的用户内存空间
-    // 使用 uvm.c 中提供的 uvm_copy_pgtbl
-    // 注意：根据你的实现，该函数内部 malloc 失败会 panic，所以这里无需判断返回值
     uvm_copy_pgtbl(p->pgtbl, np->pgtbl, p->heap_top, p->ustack_pages, p->mmap);
 
     // 复制基础元数据
     np->heap_top = p->heap_top;
     np->ustack_pages = p->ustack_pages;
-
-    // [关键] 复制 mmap 链表节点
-    // uvm_copy_pgtbl 只是复制了内存页和映射，
-    // 我们需要手动为子进程创建 mmap_region_t 链表结构，以便它能管理这些区域
     mmap_region_t *node = p->mmap;
     // 使用二级指针追踪链表尾部，保持原有顺序
     mmap_region_t **pp_new = &np->mmap; 
@@ -358,20 +380,18 @@ int proc_fork()
         node = node->next;
     }
 
-    // 3. 复制父进程的陷阱帧(trapframe)
-    // 确保子进程被调度时，寄存器状态（除a0外）与父进程一致
     *(np->tf) = *(p->tf);
 
-    // 4. 设置子进程的返回值为 0
-    // RISC-V 函数返回值存放在 a0 寄存器
+    for(int i = 0; i < FILE_PER_PROC; i++){
+        if(p->files[i]){
+            np->files[i] = file_dup(p->files[i]); // 增加引用计数
+        }
+    }
+
+    if(p->cwd == 0) panic("fork: current process has no cwd");
+    np->cwd = inode_dup(p->cwd);
+
     np->tf->a0 = 0;
-
-    // 5. 复制打开的文件描述符和当前工作目录
-    // (根据要求：暂时跳过 fs 部分)
-    // if(p->cwd) np->cwd = idup(p->cwd);
-    // for(int i=0; i<NOFILE; i++) if(p->ofile[i]) np->ofile[i] = filedup(p->ofile[i]);
-
-    // 6. 设置子进程状态为 RUNNABLE
     np->parent = p;
     pid = np->pid;
     
@@ -511,6 +531,12 @@ void proc_exit(int exit_state)
         panic("init exiting");
 
     // 1. 关闭文件等资源 (根据你的要求，此处省略)
+    for(int fd = 0; fd < FILE_PER_PROC; fd++){
+        if(p->files[fd]){
+            file_close(p->files[fd]);
+            p->files[fd] = NULL;
+        }
+    }
 
     // 2. 将所有子进程过继给 proczero
     proc_reparent(p);
